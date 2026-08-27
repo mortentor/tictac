@@ -89,13 +89,34 @@ function handleCellClick(e) {
         return;
     }
 
-    // Update game state
-    gameState.board[index] = gameState.currentPlayer;
+    // Player X moves
+    makeMove(index, 'X');
     
-    // Update cell display
-    cell.textContent = gameState.currentPlayer;
-    cell.classList.add(gameState.currentPlayer.toLowerCase());
+    // Update display and check game state
+    if (checkGameState()) {
+        return; // Game is over
+    }
 
+    // Bot (O) plays after a short delay
+    setTimeout(() => {
+        const botMove = getBotMove();
+        if (botMove !== -1) {
+            makeMove(botMove, 'O');
+            checkGameState();
+        }
+    }, 500);
+}
+
+// Make a move on the board
+function makeMove(index, player) {
+    gameState.board[index] = player;
+    const cell = cells[index];
+    cell.textContent = player;
+    cell.classList.add(player.toLowerCase());
+}
+
+// Check game state after a move
+function checkGameState() {
     // Check for winner
     if (checkWinner()) {
         gameState.gameOver = true;
@@ -103,6 +124,7 @@ function handleCellClick(e) {
         gameStatusDisplay.textContent = `🎉 Player ${gameState.currentPlayer} Wins!`;
         gameStatusDisplay.classList.add('winner');
         disableAllCells();
+        return true;
     } 
     // Check if it's a tie (no more winning possibilities)
     else if (isTiedGame()) {
@@ -110,6 +132,7 @@ function handleCellClick(e) {
         gameStatusDisplay.textContent = "🤝 It's a Tie! No more winning moves possible.";
         gameStatusDisplay.classList.add('draw');
         disableAllCells();
+        return true;
     } 
     // Check if board is full (draw)
     else if (gameState.board.every(cell => cell !== null)) {
@@ -117,11 +140,15 @@ function handleCellClick(e) {
         gameStatusDisplay.textContent = "🤝 It's a Draw!";
         gameStatusDisplay.classList.add('draw');
         disableAllCells();
+        return true;
     } 
     else {
         // Switch player
         gameState.currentPlayer = gameState.currentPlayer === 'X' ? 'O' : 'X';
-        updateDisplay();
+        if (gameState.currentPlayer === 'X') {
+            updateDisplay();
+        }
+        return false;
     }
 }
 
@@ -161,6 +188,100 @@ function isTiedGame() {
     return true;
 }
 
+// Bot AI - Always wins or forces a draw
+function getBotMove() {
+    // 1. If bot can win, win immediately
+    for (let i = 0; i < gameState.board.length; i++) {
+        if (gameState.board[i] === null) {
+            gameState.board[i] = 'O';
+            if (checkWinnerForPlayer('O')) {
+                gameState.board[i] = null; // Undo
+                return i;
+            }
+            gameState.board[i] = null; // Undo
+        }
+    }
+    
+    // 2. Block player X from winning
+    for (let i = 0; i < gameState.board.length; i++) {
+        if (gameState.board[i] === null) {
+            gameState.board[i] = 'X';
+            if (checkWinnerForPlayer('X')) {
+                gameState.board[i] = null; // Undo
+                return i; // Block this position
+            }
+            gameState.board[i] = null; // Undo
+        }
+    }
+    
+    // 3. Play strategically to build winning opportunities
+    let bestScore = -Infinity;
+    let bestMove = -1;
+    
+    for (let i = 0; i < gameState.board.length; i++) {
+        if (gameState.board[i] === null) {
+            const score = evaluatePosition(i);
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = i;
+            }
+        }
+    }
+    
+    return bestMove !== -1 ? bestMove : findAnyMove();
+}
+
+// Check if a specific player has won
+function checkWinnerForPlayer(player) {
+    return WINNING_COMBINATIONS.some(combination => {
+        const [first, ...rest] = combination;
+        return gameState.board[first] === player && rest.every(index => gameState.board[index] === player);
+    });
+}
+
+// Evaluate a position score for strategic play
+function evaluatePosition(index) {
+    let score = 0;
+    
+    // Center positions are more valuable
+    const row = Math.floor(index / BOARD_SIZE);
+    const col = index % BOARD_SIZE;
+    const distFromCenter = Math.abs(row - 2) + Math.abs(col - 2);
+    score += (4 - distFromCenter) * 2;
+    
+    // Count potential winning lines through this position
+    for (let combination of WINNING_COMBINATIONS) {
+        if (!combination.includes(index)) continue;
+        
+        const cells = combination.map(i => gameState.board[i]);
+        const oCells = cells.filter(c => c === 'O').length;
+        const xCells = cells.filter(c => c === 'X').length;
+        const emptyCells = cells.filter(c => c === null).length;
+        
+        // Bonus for positions that help O build lines
+        if (xCells === 0 && emptyCells > 0) {
+            score += oCells * 10; // Prefer positions that build O's advantage
+        }
+        
+        // Penalty for positions that help X build lines
+        if (oCells === 0 && emptyCells > 0) {
+            score += (WIN_LENGTH - xCells) * 5; // Still valuable to block X
+        }
+    }
+    
+    return score;
+}
+
+// Find any available move
+function findAnyMove() {
+    for (let i = 0; i < gameState.board.length; i++) {
+        if (gameState.board[i] === null) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 // Disable all cells
 function disableAllCells() {
     cells.forEach(cell => {
@@ -171,7 +292,7 @@ function disableAllCells() {
 
 // Update display
 function updateDisplay() {
-    currentPlayerDisplay.textContent = `Player ${gameState.currentPlayer}'s Turn`;
+    currentPlayerDisplay.textContent = `Your Turn (You are X)`;
 }
 
 // Reset game
