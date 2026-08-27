@@ -273,7 +273,7 @@ function getBotMove() {
             const original = gameState.board[i];
             gameState.board[i] = 'O';
             
-            // Temporarily remove X to check if O would win
+            // Temporarily remove X to check if O would block
             const hasX = original === 'X';
             const tempBoard = [...gameState.board];
             if (hasX) gameState.board[i] = null;
