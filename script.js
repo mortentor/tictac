@@ -52,18 +52,29 @@ function handleCellClick(e) {
     cell.classList.add(gameState.currentPlayer.toLowerCase());
     cell.classList.add('disabled');
 
-    // Check for winner or draw
+    // Check for winner
     if (checkWinner()) {
         gameState.gameOver = true;
         gameState.winner = gameState.currentPlayer;
         gameStatusDisplay.textContent = `🎉 Player ${gameState.currentPlayer} Wins!`;
         gameStatusDisplay.classList.add('winner');
         disableAllCells();
-    } else if (gameState.board.every(cell => cell !== null)) {
+    } 
+    // Check if it's a tie (no more winning possibilities)
+    else if (isTiedGame()) {
+        gameState.gameOver = true;
+        gameStatusDisplay.textContent = "🤝 It's a Tie! No more winning moves possible.";
+        gameStatusDisplay.classList.add('draw');
+        disableAllCells();
+    } 
+    // Check if board is full (draw)
+    else if (gameState.board.every(cell => cell !== null)) {
         gameState.gameOver = true;
         gameStatusDisplay.textContent = "🤝 It's a Draw!";
         gameStatusDisplay.classList.add('draw');
-    } else {
+        disableAllCells();
+    } 
+    else {
         // Switch player
         gameState.currentPlayer = gameState.currentPlayer === 'X' ? 'O' : 'X';
         updateDisplay();
@@ -78,6 +89,38 @@ function checkWinner() {
                gameState.board[a] === gameState.board[b] &&
                gameState.board[a] === gameState.board[c];
     });
+}
+
+// Check if the game is tied (no player can possibly win)
+function isTiedGame() {
+    // For each winning combination, check if either player can still complete it
+    for (let combination of WINNING_COMBINATIONS) {
+        const [a, b, c] = combination;
+        const cells = [gameState.board[a], gameState.board[b], gameState.board[c]];
+        
+        // Check if X can still win this line
+        const xCells = cells.filter(cell => cell === 'X').length;
+        const oCells = cells.filter(cell => cell === 'O').length;
+        const emptyCells = cells.filter(cell => cell === null).length;
+        
+        // If a line has both X and O, it's blocked
+        if (xCells > 0 && oCells > 0) {
+            continue; // This line is blocked, check next
+        }
+        
+        // If a line has empty cells and only one player's marks, they can still win
+        if (emptyCells > 0 && (xCells > 0 || oCells > 0)) {
+            return false; // At least one player can still win
+        }
+        
+        // If a line is completely empty, either player could potentially win
+        if (xCells === 0 && oCells === 0 && emptyCells > 0) {
+            return false; // Players can still win on this line
+        }
+    }
+    
+    // If we get here, no player can win
+    return true;
 }
 
 // Disable all cells
