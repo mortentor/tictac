@@ -1,22 +1,67 @@
 // Game state
 const gameState = {
-    board: Array(9).fill(null),
+    board: Array(25).fill(null),
     currentPlayer: 'X',
     gameOver: false,
     winner: null
 };
 
-// Winning combinations
-const WINNING_COMBINATIONS = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6]
-];
+// Board dimensions
+const BOARD_SIZE = 5;
+const WIN_LENGTH = 3; // Need 3 in a row to win on 5x5 board
+
+// Function to generate all winning combinations for 5x5 board
+function generateWinningCombinations() {
+    const combinations = [];
+    
+    // Horizontal lines
+    for (let row = 0; row < BOARD_SIZE; row++) {
+        for (let col = 0; col <= BOARD_SIZE - WIN_LENGTH; col++) {
+            const line = [];
+            for (let i = 0; i < WIN_LENGTH; i++) {
+                line.push(row * BOARD_SIZE + col + i);
+            }
+            combinations.push(line);
+        }
+    }
+    
+    // Vertical lines
+    for (let col = 0; col < BOARD_SIZE; col++) {
+        for (let row = 0; row <= BOARD_SIZE - WIN_LENGTH; row++) {
+            const line = [];
+            for (let i = 0; i < WIN_LENGTH; i++) {
+                line.push((row + i) * BOARD_SIZE + col);
+            }
+            combinations.push(line);
+        }
+    }
+    
+    // Diagonal lines (top-left to bottom-right)
+    for (let row = 0; row <= BOARD_SIZE - WIN_LENGTH; row++) {
+        for (let col = 0; col <= BOARD_SIZE - WIN_LENGTH; col++) {
+            const line = [];
+            for (let i = 0; i < WIN_LENGTH; i++) {
+                line.push((row + i) * BOARD_SIZE + col + i);
+            }
+            combinations.push(line);
+        }
+    }
+    
+    // Diagonal lines (top-right to bottom-left)
+    for (let row = 0; row <= BOARD_SIZE - WIN_LENGTH; row++) {
+        for (let col = WIN_LENGTH - 1; col < BOARD_SIZE; col++) {
+            const line = [];
+            for (let i = 0; i < WIN_LENGTH; i++) {
+                line.push((row + i) * BOARD_SIZE + col - i);
+            }
+            combinations.push(line);
+        }
+    }
+    
+    return combinations;
+}
+
+const WINNING_COMBINATIONS = generateWinningCombinations();
 
 // DOM elements
 const cells = document.querySelectorAll('.cell');
@@ -50,7 +95,6 @@ function handleCellClick(e) {
     // Update cell display
     cell.textContent = gameState.currentPlayer;
     cell.classList.add(gameState.currentPlayer.toLowerCase());
-    cell.classList.add('disabled');
 
     // Check for winner
     if (checkWinner()) {
@@ -84,10 +128,10 @@ function handleCellClick(e) {
 // Check for winner
 function checkWinner() {
     return WINNING_COMBINATIONS.some(combination => {
-        const [a, b, c] = combination;
-        return gameState.board[a] !== null &&
-               gameState.board[a] === gameState.board[b] &&
-               gameState.board[a] === gameState.board[c];
+        const [first, ...rest] = combination;
+        const firstPlayer = gameState.board[first];
+        
+        return firstPlayer !== null && rest.every(index => gameState.board[index] === firstPlayer);
     });
 }
 
@@ -95,10 +139,9 @@ function checkWinner() {
 function isTiedGame() {
     // For each winning combination, check if either player can still complete it
     for (let combination of WINNING_COMBINATIONS) {
-        const [a, b, c] = combination;
-        const cells = [gameState.board[a], gameState.board[b], gameState.board[c]];
+        const cells = combination.map(index => gameState.board[index]);
         
-        // Check if X can still win this line
+        // Count X's, O's, and empty cells in this line
         const xCells = cells.filter(cell => cell === 'X').length;
         const oCells = cells.filter(cell => cell === 'O').length;
         const emptyCells = cells.filter(cell => cell === null).length;
@@ -109,13 +152,8 @@ function isTiedGame() {
         }
         
         // If a line has empty cells and only one player's marks, they can still win
-        if (emptyCells > 0 && (xCells > 0 || oCells > 0)) {
-            return false; // At least one player can still win
-        }
-        
-        // If a line is completely empty, either player could potentially win
-        if (xCells === 0 && oCells === 0 && emptyCells > 0) {
-            return false; // Players can still win on this line
+        if (emptyCells > 0) {
+            return false; // At least one player can still potentially win
         }
     }
     
@@ -138,7 +176,7 @@ function updateDisplay() {
 
 // Reset game
 function resetGame() {
-    gameState.board = Array(9).fill(null);
+    gameState.board = Array(25).fill(null);
     gameState.currentPlayer = 'X';
     gameState.gameOver = false;
     gameState.winner = null;
