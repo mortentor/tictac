@@ -89,8 +89,16 @@ function handleCellClick(e) {
         return;
     }
 
+    // Check if X can capture an O
+    const captured = gameState.board[index] === 'O';
+    
     // Player X moves
     makeMove(index, 'X');
+    
+    // Show explosion effect if capturing
+    if (captured) {
+        createExplosion(index, 'O');
+    }
     
     // Update display and check game state
     if (checkGameState()) {
@@ -101,7 +109,16 @@ function handleCellClick(e) {
     setTimeout(() => {
         const botMove = getBotMove();
         if (botMove !== -1) {
+            // Check if O can capture an X
+            const botCaptured = gameState.board[botMove] === 'X';
+            
             makeMove(botMove, 'O');
+            
+            // Show explosion effect if capturing
+            if (botCaptured) {
+                createExplosion(botMove, 'X');
+            }
+            
             checkGameState();
         }
     }, 500);
@@ -113,6 +130,53 @@ function makeMove(index, player) {
     const cell = cells[index];
     cell.textContent = player;
     cell.classList.add(player.toLowerCase());
+}
+
+// Create explosion effect when a piece is captured
+function createExplosion(index, capturedPlayer) {
+    const cell = cells[index];
+    
+    // Add explosion animation
+    cell.classList.add('explosion');
+    
+    // Create particle burst
+    createParticleBurst(cell, capturedPlayer);
+    
+    // Remove explosion class after animation
+    setTimeout(() => {
+        cell.classList.remove('explosion');
+    }, 600);
+}
+
+// Create particle burst effect
+function createParticleBurst(cell, capturedPlayer) {
+    const particleCount = 12;
+    const rect = cell.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = `particle ${capturedPlayer.toLowerCase()}-particle`;
+        
+        // Calculate random burst direction
+        const angle = (i / particleCount) * Math.PI * 2;
+        const velocity = 40 + Math.random() * 20;
+        const tx = Math.cos(angle) * velocity;
+        const ty = Math.sin(angle) * velocity;
+        
+        particle.style.setProperty('--tx', `${tx}px`);
+        particle.style.setProperty('--ty', `${ty}px`);
+        particle.style.left = centerX + 'px';
+        particle.style.top = centerY + 'px';
+        
+        document.body.appendChild(particle);
+        
+        // Remove particle after animation
+        setTimeout(() => {
+            particle.remove();
+        }, 600);
+    }
 }
 
 // Check game state after a move
@@ -166,12 +230,12 @@ function checkWinner() {
 function isTiedGame() {
     // For each winning combination, check if either player can still complete it
     for (let combination of WINNING_COMBINATIONS) {
-        const cells = combination.map(index => gameState.board[index]);
+        const cellsInCombo = combination.map(index => gameState.board[index]);
         
         // Count X's, O's, and empty cells in this line
-        const xCells = cells.filter(cell => cell === 'X').length;
-        const oCells = cells.filter(cell => cell === 'O').length;
-        const emptyCells = cells.filter(cell => cell === null).length;
+        const xCells = cellsInCombo.filter(cell => cell === 'X').length;
+        const oCells = cellsInCombo.filter(cell => cell === 'O').length;
+        const emptyCells = cellsInCombo.filter(cell => cell === null).length;
         
         // If a line has both X and O, it's blocked
         if (xCells > 0 && oCells > 0) {
@@ -192,29 +256,44 @@ function isTiedGame() {
 function getBotMove() {
     // 1. If bot can win, win immediately
     for (let i = 0; i < gameState.board.length; i++) {
-        if (gameState.board[i] === null) {
+        if (gameState.board[i] === null || gameState.board[i] === 'X') {
+            const original = gameState.board[i];
             gameState.board[i] = 'O';
             if (checkWinnerForPlayer('O')) {
-                gameState.board[i] = null; // Undo
+                gameState.board[i] = original; // Undo
                 return i;
             }
-            gameState.board[i] = null; // Undo
+            gameState.board[i] = original; // Undo
         }
     }
     
     // 2. Block player X from winning
     for (let i = 0; i < gameState.board.length; i++) {
-        if (gameState.board[i] === null) {
-            gameState.board[i] = 'X';
+        if (gameState.board[i] === null || gameState.board[i] === 'X') {
+            const original = gameState.board[i];
+            gameState.board[i] = 'O';
+            
+            // Temporarily remove X to check if O would win
+            const hasX = original === 'X';
+            const tempBoard = [...gameState.board];
+            if (hasX) gameState.board[i] = null;
+            
             if (checkWinnerForPlayer('X')) {
-                gameState.board[i] = null; // Undo
+                gameState.board = tempBoard;
                 return i; // Block this position
             }
-            gameState.board[i] = null; // Undo
+            gameState.board = tempBoard;
         }
     }
     
-    // 3. Play strategically to build winning opportunities
+    // 3. Prefer capturing X pieces
+    for (let i = 0; i < gameState.board.length; i++) {
+        if (gameState.board[i] === 'X') {
+            return i; // Capture X
+        }
+    }
+    
+    // 4. Play strategically to build winning opportunities
     let bestScore = -Infinity;
     let bestMove = -1;
     
@@ -253,10 +332,10 @@ function evaluatePosition(index) {
     for (let combination of WINNING_COMBINATIONS) {
         if (!combination.includes(index)) continue;
         
-        const cells = combination.map(i => gameState.board[i]);
-        const oCells = cells.filter(c => c === 'O').length;
-        const xCells = cells.filter(c => c === 'X').length;
-        const emptyCells = cells.filter(c => c === null).length;
+        const cellsInCombo = combination.map(i => gameState.board[i]);
+        const oCells = cellsInCombo.filter(c => c === 'O').length;
+        const xCells = cellsInCombo.filter(c => c === 'X').length;
+        const emptyCells = cellsInCombo.filter(c => c === null).length;
         
         // Bonus for positions that help O build lines
         if (xCells === 0 && emptyCells > 0) {
